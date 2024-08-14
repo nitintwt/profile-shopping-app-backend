@@ -11,7 +11,7 @@ app.use(cors({
 }))
 
 app.use(express.json({limit:"16kb"})) // we are limiting the json data which can come from frontend
-app.use(express.urlencoded({limit:"16kb"})) // we are limiting the data that can come from url
+app.use(express.urlencoded({limit:"16kb" , extended:true})) // we are limiting the data that can come from url
 app.use(cookieParser()) // to do CRUD operation on user browser cookies
 
 // routes
