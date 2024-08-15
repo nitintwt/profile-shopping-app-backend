@@ -2,7 +2,7 @@ import mongoose, { Schema } from "mongoose";
 
 const productSchema = new Schema(
   {
-    mageLink:{
+    imageLink:{
       type:String,
       required:true
     },
@@ -13,6 +13,9 @@ const productSchema = new Schema(
     price:{
       type:String,
       required:true
+    },
+    type:{
+      type:String
     }
   },
   {

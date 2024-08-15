@@ -3,6 +3,7 @@ import { asyncHandler } from "../utils/asyncHandler.js"
 import { ApiError } from "../utils/ApiError.js"
 import {ApiResponse} from '../utils/ApiResponse.js'
 import { generateAccessandRefreshToken } from "../utils/generateAccessandRefreshToken.js"
+import { Product } from "../models/product.model.js"
 
 const registerUser= asyncHandler (async ( req , res)=>{
    const {name , email , password}= req.body
@@ -85,9 +86,29 @@ const loginUser =asyncHandler(async(req , res)=>{
   .status(200)
   .cookie("accessToken" , accessToken , options)
   .cookie("refreshToken" , refreshToken , options)
+  .cookie("userData" , loggedUser)
   .json(
     new ApiResponse(200 ,loggedUser , "User logged in successfully")
   )
+})
+
+const logoutUser= asyncHandler (async (req , res)=>{
+  const userId = req.body.userDbId
+  await User.findByIdAndUpdate(userId , {$set:{refreshToken:undefined}}, {new:true})
+
+  const options ={
+    httpOnly:false,
+    secure:true
+  }
+  return res
+  .status(200)
+  .clearCookie("accessToken", options)
+  .clearCookie("RefreshToken", options)
+  .clearCookie("userData")
+  .json(
+    new ApiResponse(200 , "User logged out successfully")
+  )
+
 })
 
 const placeOrder =asyncHandler  (async (req , res)=>{
@@ -115,9 +136,9 @@ const placeOrder =asyncHandler  (async (req , res)=>{
 })
 
 const addToCart =asyncHandler (async(req , res)=>{
-  const {email , productId}= req.body
+  const {userId , productId}= req.body
   try {
-    const user = await User.findOne({email})
+    const user = await User.findById(userId)
     user.productsInCart= productId
     await user.save()
     return res.status(200).json(
@@ -172,6 +193,12 @@ const getCartProducts = asyncHandler(async (req , res)=>{
   }
 })
 
+const checkProducInCart = asyncHandler (async (req , res)=>{
+  const {productId , userId}= req.body
+  const user = await User.findById(userId)
+  const checkProduct = user.productsInCart()
+})
+
 const deleteProductFromCart =asyncHandler (async (req , res)=>{
   const {email , productId}= req.body
 
@@ -207,4 +234,27 @@ const cancelPurchase = asyncHandler  (async (req , res)=>{
   }
 })
 
-export {registerUser , loginUser ,placeOrder , addToCart , deleteProductFromCart , cancelPurchase , getCartProducts , getPurchasedProducts}
+const getAllProducts = asyncHandler (async (req , res)=>{
+  const products = await Product.find()
+
+  res.status(200).json(
+    new ApiResponse(200 , products , "Products fetched successfully")
+  )
+})
+
+const getProductData = asyncHandler (async (req , res)=>{
+  const productId = req.query.productId
+
+  try {
+    const product = await Product.findById(productId)
+    return res.status(200).json(
+      new ApiResponse(200 , product , "Product data fetched successfully")
+    )
+  } catch (error) {
+    return res.status(500).json(
+      new ApiError(500 , error , "Something went wrong while fetching product data")
+    )
+  }
+})
+
+export {registerUser , loginUser ,placeOrder , addToCart , deleteProductFromCart , cancelPurchase , getCartProducts , getPurchasedProducts , logoutUser , getAllProducts , getProductData , checkProducInCart}
