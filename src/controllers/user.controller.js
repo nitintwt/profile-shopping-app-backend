@@ -4,6 +4,7 @@ import { ApiError } from "../utils/ApiError.js"
 import {ApiResponse} from '../utils/ApiResponse.js'
 import { generateAccessandRefreshToken } from "../utils/generateAccessandRefreshToken.js"
 import { Product } from "../models/product.model.js"
+import { tryCatch } from "bullmq"
 
 const registerUser= asyncHandler (async ( req , res)=>{
    const {name , email , password}= req.body
@@ -139,7 +140,7 @@ const addToCart =asyncHandler (async(req , res)=>{
   const {userId , productId}= req.body
   try {
     const user = await User.findById(userId)
-    user.productsInCart= productId
+    user.productsInCart.push(productId)
     await user.save()
     return res.status(200).json(
       new ApiResponse(200 , "Product added to cart successfully")
@@ -173,18 +174,28 @@ const getPurchasedProducts = asyncHandler(async (req , res)=>{
 })
 
 const getCartProducts = asyncHandler(async (req , res)=>{
-  const email = req.query.email
+  const {userId} = req.query
 
-  if (!email.endsWith('@gmail.com')){
-    return res.status(408).json(
-      new ApiError(408 , null ,"Enter a valid Email")
-    )
+  const user = await User.findById(userId)
+
+  
+  const getUniqueProducts = (products) => {
+    // acc is an empty object , product is current value from products array
+    const uniqueProductsMap = products.reduce((acc, product) => {
+     // We add the product to the acc object using product._id as the key.
+     //If the same product._id appears again, it will replace the previous one in the acc object. This keeps only the last occurrence of each product.
+      acc[product._id] = product
+      return acc
+    }, {})
+    // convert object to array
+    return Object.values(uniqueProductsMap)
   }
-
-  const user = await User.findOne({email})
+  
+  const uniqueProducts = getUniqueProducts(user.productsInCart)
+  
   try {
     return res.status(200).json(
-      new ApiResponse(200 , user?.productsInCart , "Fetched cart products data successfully")
+      new ApiResponse(200 , uniqueProducts , "Fetched cart products data successfully")
     )
   } catch (error) {
     return res.status(500).json(
@@ -194,28 +205,48 @@ const getCartProducts = asyncHandler(async (req , res)=>{
 })
 
 const checkProducInCart = asyncHandler (async (req , res)=>{
-  const {productId , userId}= req.body
-  const user = await User.findById(userId)
-  const checkProduct = user.productsInCart()
+  const {productId , userId}= req.query
+
+  const user = await User.findOne({_id:userId , productsInCart:{$in:[productId]}})
+  if(user){
+    return res.status(200).json(
+      new ApiResponse (200 , true , "Product checking done")
+    )
+  } else {
+    return res.status(200).json(
+      new ApiResponse(200 , false , "Product checking done")
+    )
+  }
+})
+
+const countOfProductsInCart = asyncHandler (async (req , res)=>{
+  const {userId , productId}= req.query
+
+  try {
+    const user = await User.findById(userId)
+    const count = user.productsInCart.filter((id) => id.toString() === productId).length;
+    return res.status(200).json(
+      new ApiResponse(200 , count , "Product count fetched successfully")
+    )
+  } catch (error) {
+    return res.status(500).json(
+      new ApiError (500 , error , "Something went wrong while fetching product count")
+    )
+  }
 })
 
 const deleteProductFromCart =asyncHandler (async (req , res)=>{
-  const {email , productId}= req.body
-
-  if (!email.endsWith('@gmail.com')){
-    return res.status(408).json(
-      new ApiError(408 , null ,"Enter a valid Email")
-    )
-  }
+  const {userId , productId}= req.query
+  
   try {
     // $pull removes all instances of a value from an array
-    await User.findOneAndUpdate({email} , {$pull:{productsInCart:productId}})
+    await User.findByIdAndUpdate(userId , {$pull:{productsInCart:productId}})
     return res.status(200).json(
       new ApiResponse(200 , "Product removed from cart successfully")
     )
   } catch (error) {
     return res.status(500).json(
-      new ApiError(500 , null , "Something went wrong while removing product from cart")
+      new ApiError(500 , error , "Something went wrong while removing product from cart")
     )
   }
 })
@@ -257,4 +288,30 @@ const getProductData = asyncHandler (async (req , res)=>{
   }
 })
 
-export {registerUser , loginUser ,placeOrder , addToCart , deleteProductFromCart , cancelPurchase , getCartProducts , getPurchasedProducts , logoutUser , getAllProducts , getProductData , checkProducInCart}
+const decreaseProductQuantity = asyncHandler (async (req , res)=>{
+  const {userId , productId}= req.query
+  try {
+    const user = await User.findById(userId)
+
+    // Find the index of the first occurrence of the productId in the array
+    const index = user.productsInCart.indexOf(productId)
+
+    if (index !== -1) {
+      // Remove one occurrence of the productId using splice
+      user.productsInCart.splice(index, 1)
+
+      // Save the updated user document
+      await user.save()
+
+      return res.status(200).json(
+        new ApiResponse(200, "Product quantity decreased successfully")
+      )
+    } 
+  } catch (error) {
+    return res.status(500).json(
+      new ApiError (500 , error , "Something went wrong while decreasing product quantity")
+    )
+  }
+})
+
+export {registerUser , loginUser ,placeOrder , addToCart , deleteProductFromCart , cancelPurchase , getCartProducts , getPurchasedProducts , logoutUser , getAllProducts , getProductData , checkProducInCart , countOfProductsInCart , decreaseProductQuantity}

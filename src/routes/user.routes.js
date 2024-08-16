@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { addToCart, cancelPurchase, checkProducInCart, deleteProductFromCart, getAllProducts, getCartProducts, getProductData, getPurchasedProducts, loginUser, logoutUser, placeOrder, registerUser } from "../controllers/user.controller.js";
+import { addToCart, cancelPurchase, checkProducInCart, countOfProductsInCart, decreaseProductQuantity, deleteProductFromCart, getAllProducts, getCartProducts, getProductData, getPurchasedProducts, loginUser, logoutUser, placeOrder, registerUser } from "../controllers/user.controller.js";
 import { verifyUser } from "../middlewares/auth.middleware.js";
 
 const userRouter = Router()
@@ -16,6 +16,8 @@ userRouter.route("/logout").post(logoutUser)
 userRouter.route("/products").get(getAllProducts)
 userRouter.route("/productData").get(getProductData)
 userRouter.route("/checkProductInCart").get(checkProducInCart)
+userRouter.route("/productCount").get(countOfProductsInCart)
+userRouter.route("/decreaseProductQuantity").delete(decreaseProductQuantity)
 
 
 export default userRouter
