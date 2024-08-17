@@ -1,6 +1,7 @@
 import dotenv from 'dotenv'
 import { app } from './app.js'
 import connectDB from './db/index.js'
+import { purchaseEmailWorker } from './controllers/email.controller.js'
 
 dotenv.config({path:'./.env'})
 

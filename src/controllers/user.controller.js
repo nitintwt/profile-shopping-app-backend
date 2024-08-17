@@ -4,7 +4,22 @@ import { ApiError } from "../utils/ApiError.js"
 import {ApiResponse} from '../utils/ApiResponse.js'
 import { generateAccessandRefreshToken } from "../utils/generateAccessandRefreshToken.js"
 import { Product } from "../models/product.model.js"
-import { tryCatch } from "bullmq"
+import { Queue } from "bullmq"
+import dotenv from 'dotenv'
+
+dotenv.config({
+  path:'./.env'
+})
+
+const emailQueue = new Queue("shipper-email-queue" , {
+  connection: {
+    host:process.env.AIVEN_HOST,
+    port:process.env.AIVEN_PORT,
+    username:process.env.AIVEN_USERNAME,
+    password:process.env.AIVEN_PASSWORD ,
+  },
+})
+
 
 const registerUser= asyncHandler (async ( req , res)=>{
    const {name , email , password}= req.body
@@ -113,19 +128,15 @@ const logoutUser= asyncHandler (async (req , res)=>{
 })
 
 const placeOrder =asyncHandler  (async (req , res)=>{
-  const {email , productId , address}= req.body
-
-  if (!email.endsWith('@gmail.com')){
-    return res.status(408).json(
-      new ApiError(408 , null ,"Enter a valid Email")
-    )
-  }
+  const {userId , productsId , address}= req.body
 
   try {
-    const user = await User.findOne({email})
+    const user = await User.findById(userId)
     user.address= address
-    user.productsPurchased = productId
+    user.productsPurchased.push(...productsId)
+    user.productsInCart =[]
     await user.save()
+    await emailQueue.add(`${userId}`, {userId , productsId})
     return res.status(200).json(
       new ApiResponse(200 , "Your purchase was successfull")
     )
